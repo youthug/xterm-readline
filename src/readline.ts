@@ -4,6 +4,7 @@ import { State } from "./state";
 import { History } from "./history";
 import { Output, Tty } from "./tty";
 import { Highlighter, IdentityHighlighter } from "./highlight";
+import { CompletionHandler, CompletionOptions } from "./completions";
 
 interface ActiveRead {
   prompt: string;
@@ -19,6 +20,8 @@ export class Readline implements ITerminalAddon {
   private term: Terminal | undefined;
   private highlighter: Highlighter = new IdentityHighlighter();
   private history: History = new History(50);
+  private completionHandler: CompletionHandler = new CompletionHandler();
+  private onCompletion = false;
   private activeRead: ActiveRead | undefined;
   private disposables: IDisposable[] = [];
   private watermark = 0;
@@ -114,6 +117,18 @@ export class Readline implements ITerminalAddon {
   public setPauseHandler(fn: PauseHandler) {
     this.pauseHandler = fn;
   }
+
+  public addCompletionHandler: CompletionHandler["addCompletionHandler"] = (
+    options: string[] | CompletionOptions,
+    key?: boolean | string,
+    replace?: boolean
+  ) => {
+    this.completionHandler.addCompletionHandler(
+      options as CompletionOptions,
+      key as string,
+      replace
+    );
+  };
 
   /**
    * writeReady() may be used to implement basic output flow control. This function
@@ -279,6 +294,42 @@ export class Readline implements ITerminalAddon {
       return;
     }
 
+    if (input.inputType === InputType.Tab) {
+      const lastCommand = resolveLastCommand(this.state.buffer());
+      const { result, completions } =
+        this.completionHandler.complete(lastCommand) || {};
+
+      if (this.onCompletion) {
+        // TODO need to find another way to print-pretty
+        // output completions
+        this.tty().write(
+          "\r\n" +
+            completions!
+              .reduce((acc, cur) => {
+                const lastSeq = acc.at(-1);
+                if (lastSeq && lastSeq.length < 3) lastSeq.push(cur);
+                else acc.push([cur]);
+                return acc;
+              }, [] as string[][])
+              .map((i) => i.join("\t"))
+              .join("\r\n") +
+            "\r\n"
+        );
+        // restore input
+        this.tty().write(this.activeRead.prompt + this.state.buffer());
+        this.onCompletion = false;
+      } else if (lastCommand && result && lastCommand !== result) {
+        // apply completion
+        this.state.editBackspace(lastCommand.length);
+        this.state.editInsert(result);
+        this.onCompletion = false;
+      } else if (completions?.length) {
+        this.onCompletion = true;
+      }
+      return;
+    }
+    this.onCompletion = false;
+
     switch (input.inputType) {
       case InputType.Text:
         this.state.editInsert(input.data.join(""));
@@ -356,4 +407,9 @@ export class Readline implements ITerminalAddon {
         break;
     }
   }
+}
+
+function resolveLastCommand(value: string) {
+  const split = value.split(/(\r?\n|[\s&|;])+/);
+  return split.at(-1) || "";
 }
