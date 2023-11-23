@@ -74,12 +74,10 @@ export class CompletionHandler {
       if (
         // array
         (Array.isArray(prefix) &&
-          !prefix.some((i) =>
-            getComparingVal(i, strict).startsWith(compVal)
-          )) ||
+          prefix.some((i) => compVal.startsWith(getComparingVal(i, strict)))) ||
         // string
         (typeof prefix === "string" &&
-          getComparingVal(prefix, strict).startsWith(compVal)) ||
+          compVal.startsWith(getComparingVal(prefix, strict))) ||
         // regexp
         (prefix instanceof RegExp && prefix.test(value))
       ) {
