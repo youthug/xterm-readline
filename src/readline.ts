@@ -299,26 +299,29 @@ export class Readline implements ITerminalAddon {
     }
 
     if (input.inputType === InputType.Tab) {
-      const lastCommand = resolveLastCommand(this.state.buffer());
-      const { result, completions } =
-        this.completionHandler.complete(lastCommand) || {};
+      const buffer = this.state.buffer();
+      if (buffer.length) {
+        const lastCommand = resolveLastCommand(buffer);
+        const { result, completions } =
+          this.completionHandler.complete(lastCommand) || {};
 
-      if (this.onCompletion) {
-        // print commands
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        this.tty().write(handleCompletionsOutput(completions!, this.term));
-        // restore input
-        this.tty().write(this.activeRead.prompt + this.state.buffer());
-        this.onCompletion = false;
-      } else if (lastCommand && result && lastCommand !== result) {
-        // apply completion
-        this.state.editBackspace(lastCommand.length);
-        this.state.editInsert(result);
-        this.onCompletion = false;
-      } else if (completions?.length) {
-        this.onCompletion = true;
+        if (this.onCompletion) {
+          // print commands
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          this.tty().write(handleCompletionsOutput(completions!, this.term));
+          // restore input
+          this.tty().write(this.activeRead.prompt + buffer);
+          this.onCompletion = false;
+        } else if (lastCommand && result && lastCommand !== result) {
+          // apply completion
+          this.state.editBackspace(lastCommand.length);
+          this.state.editInsert(result);
+          this.onCompletion = false;
+        } else if (completions?.length) {
+          this.onCompletion = true;
+        }
+        return;
       }
-      return;
     }
     this.onCompletion = false;
 
