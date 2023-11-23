@@ -1,10 +1,14 @@
-import { Terminal, ITerminalAddon, IDisposable } from "xterm";
+import { IDisposable, ITerminalAddon, Terminal } from "xterm";
 import { Input, InputType, parseInput } from "./keymap";
 import { State } from "./state";
 import { History } from "./history";
 import { Output, Tty } from "./tty";
 import { Highlighter, IdentityHighlighter } from "./highlight";
-import { CompletionHandler, CompletionOptions } from "./completions";
+import {
+  CompletionHandler,
+  CompletionOptions,
+  handleCompletionsOutput,
+} from "./completions";
 
 interface ActiveRead {
   prompt: string;
@@ -300,21 +304,9 @@ export class Readline implements ITerminalAddon {
         this.completionHandler.complete(lastCommand) || {};
 
       if (this.onCompletion) {
-        // TODO need to find another way to print-pretty
-        // output completions
-        this.tty().write(
-          "\r\n" +
-            completions!
-              .reduce((acc, cur) => {
-                const lastSeq = acc.at(-1);
-                if (lastSeq && lastSeq.length < 3) lastSeq.push(cur);
-                else acc.push([cur]);
-                return acc;
-              }, [] as string[][])
-              .map((i) => i.join("\t"))
-              .join("\r\n") +
-            "\r\n"
-        );
+        // print commands
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        this.tty().write(handleCompletionsOutput(completions!, this.term));
         // restore input
         this.tty().write(this.activeRead.prompt + this.state.buffer());
         this.onCompletion = false;

@@ -1,3 +1,5 @@
+import { Terminal } from "xterm";
+
 export interface CompletionOptions {
   prefix: string | string[] | RegExp;
   strict?: boolean;
@@ -93,6 +95,47 @@ export class CompletionHandler {
       completions: sorted,
     };
   }
+}
+
+export function handleCompletionsOutput(
+  completions: string[],
+  term: Terminal | undefined
+) {
+  const { cols = 80, rows = 10 } = term || {};
+
+  const maxLen = Math.max(...completions.map((i) => i.length));
+  const printWidth = maxLen + 2;
+  const itemsEachRow = Math.max(Math.floor(cols / printWidth), 1);
+
+  const currentPage = completions.slice(
+    0,
+    Math.min(
+      completions.length,
+      ((rows * itemsEachRow < completions.length ? rows - 1 : rows) - 1) *
+        itemsEachRow
+    )
+  );
+
+  let printText = currentPage
+    .reduce((acc, cur) => {
+      const lastRow = acc.at(-1);
+      if (lastRow && lastRow.length < itemsEachRow) lastRow.push(cur);
+      else acc.push([cur]);
+      return acc;
+    }, [] as string[][])
+    .map((g) =>
+      g
+        .map((i, index) =>
+          index === g.length - 1 ? i : i.padEnd(printWidth, " ")
+        )
+        .join("")
+    )
+    .join("\r\n");
+
+  const hiddenCount = completions.length - currentPage.length;
+  if (hiddenCount) printText += `\r\n...and ${hiddenCount} more`;
+
+  return "\r\n" + printText + "\r\n";
 }
 
 function getComparingVal(value: string, strict: boolean) {
