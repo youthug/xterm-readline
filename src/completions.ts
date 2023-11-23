@@ -1,10 +1,14 @@
 import { Terminal } from "xterm";
 
 export interface CompletionOptions {
+  key?: string;
+  replace?: boolean;
   prefix: string | string[] | RegExp;
   strict?: boolean;
   completions: string[];
 }
+
+export type Completions = string[] | CompletionOptions;
 
 export interface CompletionResult {
   result?: string;
@@ -14,27 +18,16 @@ export interface CompletionResult {
 export class CompletionHandler {
   private definedCompletions: Record<string, CompletionOptions> = {};
 
-  public addCompletionHandler(completions: string[], replace?: boolean): void;
+  public addCompletionHandler(options: Completions, replace?: boolean): void;
 
   public addCompletionHandler(
-    completions: string[],
+    options: Completions,
     key?: string,
     replace?: boolean
   ): void;
 
   public addCompletionHandler(
-    options: CompletionOptions,
-    replace?: boolean
-  ): void;
-
-  public addCompletionHandler(
-    options: CompletionOptions,
-    key?: string,
-    replace?: boolean
-  ): void;
-
-  public addCompletionHandler(
-    options: string[] | CompletionOptions,
+    options: Completions,
     key?: boolean | string,
     replace?: boolean
   ) {
@@ -43,7 +36,8 @@ export class CompletionHandler {
       replace = key;
       key = "";
     }
-    if (key === undefined) key = "";
+    if (key === undefined) key = options.key || "";
+    if (replace === undefined) replace = options.replace;
 
     if (this.definedCompletions[key] && !replace) {
       const { completions } = options;
@@ -61,11 +55,14 @@ export class CompletionHandler {
     const matched: Set<string> = new Set();
 
     completionsArr.forEach(({ prefix, strict = false, completions }) => {
-      const compVal = getComparingVal(value, strict);
+      const compVal = getComparisonValue(value, strict);
 
       if (!prefix) {
         completions.forEach((i) => {
-          if (!compVal.trim() || getComparingVal(i, strict).startsWith(compVal))
+          if (
+            !compVal.trim() ||
+            getComparisonValue(i, strict).startsWith(compVal)
+          )
             matched.add(i);
         });
         return;
@@ -74,22 +71,24 @@ export class CompletionHandler {
       if (
         // array
         (Array.isArray(prefix) &&
-          prefix.some((i) => compVal.startsWith(getComparingVal(i, strict)))) ||
+          prefix.some((i) =>
+            compVal.startsWith(getComparisonValue(i, strict))
+          )) ||
         // string
         (typeof prefix === "string" &&
-          compVal.startsWith(getComparingVal(prefix, strict))) ||
+          compVal.startsWith(getComparisonValue(prefix, strict))) ||
         // regexp
         (prefix instanceof RegExp && prefix.test(value))
       ) {
         completions.forEach((i) => {
-          if (getComparingVal(i, strict).startsWith(compVal)) matched.add(i);
+          if (getComparisonValue(i, strict).startsWith(compVal)) matched.add(i);
         });
       }
     });
 
     const sorted = Array.from(matched).sort();
     return {
-      result: findLongestPrefix(sorted),
+      result: findLongestCommonPrefix(sorted),
       completions: sorted,
     };
   }
@@ -136,11 +135,11 @@ export function handleCompletionsOutput(
   return "\r\n" + printText + "\r\n";
 }
 
-function getComparingVal(value: string, strict: boolean) {
+function getComparisonValue(value: string, strict: boolean) {
   return strict ? value : value.toLowerCase();
 }
 
-function findLongestPrefix(words: string[]) {
+function findLongestCommonPrefix(words: string[]) {
   // check border cases size 1 array and empty first word
   if (!words[0] || words.length === 1) return words[0] || "";
 
